@@ -121,43 +121,36 @@ double fix_angle(double angle)
 }
 
 
-void goto_goal(double x, double y)
+void set_angle(double desired_angle)
 {
-	double ex=x-current_x, ey=y-current_y;
-	double pd=1.0, id=1.0, dd=0.1;
-	double pa=1.0, ia=1.0, da=0.0;
-	double int_dist=0.0, int_angle=0.0;
-	double desired_angle=fix_angle(atan2(ey, ex));
-	double dist=sqrt(ex*ex+ey*ey), eangle=fix_angle(desired_angle-current_angle);
-	const double wait_time=0.001;//in seconds
-	double prev_dist=dist, prev_angle=eangle;
-	ex=x-current_x;
-	ey=y-current_y;
+	double proportional=1.0, integral=1.0, derivative=5.0; //Why does the derivative value need to be so high???
+	double int_angle=0.0;
+	double eangle=fix_angle(desired_angle-current_angle);
+	const double wait_time=0.01;//in seconds
+	double  prev_angle=eangle;
 	const double acceptable_angle_error=pi*2.0/180.0;
+	double turn_rate;
 
-	//while (dist > 0.1) {
 		while (abs(fix_angle(eangle)) > acceptable_angle_error) {
 			eangle=fix_angle(desired_angle-current_angle);
-			double turn_rate=pa*eangle+ia*int_angle;
+			turn_rate=proportional*eangle+integral*int_angle+derivative*(eangle-prev_angle)/wait_time;
+			turn_rate=fix_angle(turn_rate);
 			prev_angle=eangle;
 			int_angle=fix_angle(int_angle+wait_time*eangle);
 			control_wheels(0.0, turn_rate);
 			delay((int) (wait_time*1000.0));
 		}
 		halt();
-		while (1) {}
-		/*double velocity=
-		prev_angle=angle;
-		prev_dist=dist;
-		int_dist+=dist;
-		ex=x-current_x;
-		ey=y-current_y;
-		dist=sqrt(ex*ex+ey*ey);
-	} */
+}
+
+void turn(double angle)
+{
+	set_angle(fix_angle(current_angle+angle));
 }
 
 void loop()
 {
 	//control_wheels(0.0, 1.0);
-	goto_goal(0.0, 1.0);
+	turn(pi/2.0);
+	delay(1000);
 }
