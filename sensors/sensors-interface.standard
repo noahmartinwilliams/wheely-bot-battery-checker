@@ -1,0 +1,17 @@
+*all communication to sensor system is done via i2c, unless it's in debugging mode in which case it could be through usb serial interface.
+commands:
+	*all commands begin with exclamation point
+	!setpos <x>:<y>:<angle>
+		*sets the current angle. Use % for any value not to be changed.
+	!setdim <width>:<wheel-radius>
+		*sets physical dimentions. Use % for any value not changed. (Note: this might not actually show up).
+queries:
+	*all queries begin with question mark
+	?pos
+		queries position and orientation
+statements:
+	*all statements to the sensor system begin with a period.
+
+responses:
+	*all responses that begin with a 'D:<n>:' are debugging info. <n> is a number indicating debugging verbosity.
+	<x>:<y>:<angle>
