@@ -3,23 +3,23 @@
 const int left_forward_pin=6;
 const int left_backward_pin=5;
 const int right_forward_pin=9;
-const int right_backward_pin=10;
-const int right_wheel_input=A1;
-const int left_wheel_input=A0;
-const int interrupt_pin=0, interrupt_pin2=1;
-const int left_echo_pin=11, left_trig_pin=12;
-const int right_echo_pin=4, right_trig_pin=3;
+const int right_backward_pin=10; // for the wheel driver unit
+const int right_wheel_input=A1; 
+const int left_wheel_input=A0; //from the wheel encoders which emit a 5v high when the wheel turns one tick.
+const int interrupt_pin=0, interrupt_pin2=1; //note: pins 0 and 1 are not used. Since this is an arduino uno it's actually pins 2 and 3. Arduino has a weird way of labelling interrupt pins
+const int left_echo_pin=11, left_trig_pin=12; // for the left sonar unit
+const int right_echo_pin=4, right_trig_pin=3; // for the right sonar unit (not currently used).
 const double body_length=18.0; //cm
 const double wheel_radius=3.5; //cm
 const double max_speed=12.5; //rads / sec
 const double pi=3.14159265358979;//32384626433832790528841971633993 <- adjust as needed.
-const int ticks_per_revolution=38;
+const int ticks_per_revolution=38; //This isn't the real number of ticks. It's actually twice that amount since a wheel encoder will go from low to high and then from high to low for each 'tick'
 const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
 volatile double current_x=0.0, current_y=0.0, current_angle=0.0;
 volatile bool left_direction=true, right_direction=true;
 const int min_pwm=0;
-const int front_an=A5;
+const int front_an=A5; //not currently used.
 
 void setup_pins()
 {
@@ -32,7 +32,6 @@ void setup_pins()
 	pinMode(right_wheel_input, INPUT);
 	pinMode(left_wheel_input, INPUT);
 }
-#define DEBUG
 void halt()
 {
 	analogWrite(left_forward_pin, 0);
@@ -222,7 +221,12 @@ void loop()
 	goto_goal(-50.0, -50.0);
 	goto_goal(50.0, -50.0); */
 	forward(50.0, until_wall_gone);
+	if (Serial.available())
+		while (1) {}
 	turn(pi/2.0);
+	if (Serial.available())
+		while (1) {}
 	forward(50.0, until_wall_appears);
-	while (1) {}
+	if (Serial.available())
+		while (1) {}
 }
