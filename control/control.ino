@@ -15,12 +15,13 @@ const double pi=3.14159265358979;//32384626433832790528841971633993 <- adjust as
 const int ticks_per_revolution=38; //This isn't the real number of ticks. It's actually twice that amount since a wheel encoder will go from low to high and then from high to low for each 'tick'
 const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
-volatile double current_y=0.0, current_angle=0.0;
+volatile double current_angle=0.0;
 volatile bool left_direction=true, right_direction=true;
 const int min_pwm=0;
 const int sensor_id=8;
 
 double current_x();
+double current_y();
 #define DEBUG
 void setup_pins()
 {
@@ -48,6 +49,9 @@ void setup()
 	delay(1000);
 	#ifdef DEBUG
 	Serial.begin(9600);
+	Serial.println("press any key to continue");
+	while (!Serial.available()) {
+	}
 	#endif
 }
 
@@ -120,7 +124,7 @@ void turn(double angle)
 
 int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 {
-	double dx=desired_x-current_x(), dy=desired_y-current_y;
+	double dx=desired_x-current_x(), dy=desired_y-current_y();
 	double distance=sqrt(dx*dx+dy*dy);
 	const double max_dist=1.0;//cm
 	const double max_angle_error=2.0*pi/double(ticks_per_revolution);
@@ -137,7 +141,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 			set_angle(atan2(dy, dx));
 		}
 		control_wheels(-10.0, 0.0);
-		dx=desired_x-current_x(); dy=desired_y-current_y;
+		dx=desired_x-current_x(); dy=desired_y-current_y();
 		distance=sqrt(dx*dx+dy*dy);
 		eangle=fix_angle(atan2(dy, dx)-current_angle);
 		delay(1);
@@ -148,7 +152,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 
 int forward(double distance, int (*exit_func) ()) //cm
 {
-	return goto_goal(current_x()+distance*cos(current_angle), current_y+distance*sin(current_angle), exit_func);
+	return goto_goal(current_x()+distance*cos(current_angle), current_y()+distance*sin(current_angle), exit_func);
 }
 
 double measure_distance(int timeout, int trig_pin, int echo_pin)
@@ -181,16 +185,30 @@ int until_wall_appears()
 		return 0;
 }
 
-double current_x()
+String query_i2c_dev(int id, char *query)
 {
-	Wire.beginTransmission(sensor_id);
-	Wire.write("?x");
+	Wire.beginTransmission(id);
+	Wire.write(query);
 	Wire.endTransmission();
 	String response="";
 	while (!response.endsWith("\n")) {
-		Wire.requestFrom(8, 1);
+		Wire.requestFrom(id, 1);
 		response+=char(Wire.read());
 	}
+	return response;
+}
+
+double current_x()
+{
+	String response=query_i2c_dev(sensor_id, "?x\n");
+	double ret=response.toFloat();
+	response="";
+	return ret;
+}
+
+double current_y()
+{
+	String response=query_i2c_dev(sensor_id, "?y\n");
 	double ret=response.toFloat();
 	response="";
 	return ret;
@@ -211,6 +229,6 @@ void loop()
 	forward(50.0, until_wall_appears);
 	if (Serial.available())
 		while (1) {} */
-	double x=current_x();
+	double x=current_y();
 	Serial.println(x);
 }

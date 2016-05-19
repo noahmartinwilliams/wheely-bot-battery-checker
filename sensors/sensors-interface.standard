@@ -1,4 +1,5 @@
 *all communication to sensor system is done via i2c, unless it's in debugging mode in which case it could be through usb serial interface.
+*strings are sent from master using Wire.write(), and responses are read by requesting the response string one byte at a time.
 commands:
 	*all commands begin with exclamation point
 	!setpos <x>:<y>:<angle>
@@ -7,8 +8,12 @@ commands:
 		*sets physical dimentions. Use % for any value not changed. (Note: this might not actually show up).
 queries:
 	*all queries begin with question mark
-	?pos
-		queries position and orientation
+	?x
+		*queries current_x position
+	?y
+		*queries current_y position
+	?theta
+		*queries current_angle position
 statements:
 	*all statements to the sensor system begin with a period.
 

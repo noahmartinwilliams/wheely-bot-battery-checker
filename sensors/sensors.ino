@@ -11,6 +11,8 @@ volatile bool left_direction=true, right_direction=false;
 const int decimal_places=3;
 String response=String(0.0, 3)+String("\n"), command;
 volatile int response_index=0;
+const int sig_figs=3;
+const int sensor_id=8;
 
 
 
@@ -82,15 +84,16 @@ void handle_request()
 
 void handle_receive(int numBytes)
 {
-	while (Wire.available() > 0) {
+	while (Wire.available() > 0)
 		command+=char(Wire.read());
-	}
 
-	if (command=="?x") {
-		response=String(current_x, 3)+"\n";
-		response_index=0;
-		command="";
-	}
+	response_index=0;
+	if (command=="?x\n")
+		response=String(current_x, sig_figs)+"\n";
+
+	else if (command=="?y\n")
+		response=String(current_y, sig_figs)+"\n";
+	command="";
 }
 
 void setup()
@@ -98,11 +101,10 @@ void setup()
 #ifdef DEBUG
 	Serial.begin(9600);
 #else
-	Wire.begin(8);
+	Wire.begin(sensor_id);
 	Wire.onRequest(handle_request);
 	Wire.onReceive(handle_receive);
 #endif
-	current_x=1.0;
 	pinMode(left_int_pin, INPUT);
 	pinMode(right_int_pin, INPUT);
 	attachInterrupt(right_int_pin, right_interrupt, CHANGE);
