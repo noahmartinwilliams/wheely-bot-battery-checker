@@ -93,6 +93,10 @@ void handle_receive(int numBytes)
 
 	else if (command=="?y\n")
 		response=String(current_y, sig_figs)+"\n";
+	
+	else if (command=="?theta\n")
+		response=String(current_angle, sig_figs)+"\n";
+
 	command="";
 }
 

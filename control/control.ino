@@ -15,13 +15,13 @@ const double pi=3.14159265358979;//32384626433832790528841971633993 <- adjust as
 const int ticks_per_revolution=38; //This isn't the real number of ticks. It's actually twice that amount since a wheel encoder will go from low to high and then from high to low for each 'tick'
 const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
-volatile double current_angle=0.0;
 volatile bool left_direction=true, right_direction=true;
 const int min_pwm=0;
 const int sensor_id=8;
 
 double current_x();
 double current_y();
+double current_angle();
 #define DEBUG
 void setup_pins()
 {
@@ -97,14 +97,14 @@ void set_angle(double desired_angle)
 {
 	double proportional=1.0, integral=5.0, derivative=0.1; //Why does the derivative value need to be so high???
 	double int_angle=0.0;
-	double eangle=fix_angle(desired_angle-current_angle);
+	double eangle=fix_angle(desired_angle-current_angle());
 	const double wait_time=0.01;//in seconds
 	double  prev_angle=eangle;
 	const double acceptable_angle_error=2.0*pi/double(ticks_per_revolution);
 	double turn_rate;
 
 	while (abs(fix_angle(eangle)) >= acceptable_angle_error) {
-		eangle=fix_angle(desired_angle-current_angle);
+		eangle=fix_angle(desired_angle-current_angle());
 		double int_part=0.0;
 		int_part=integral*int_angle;
 		
@@ -119,7 +119,7 @@ void set_angle(double desired_angle)
 
 void turn(double angle)
 {
-	set_angle(fix_angle(current_angle+angle));
+	set_angle(fix_angle(current_angle()+angle));
 }
 
 int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
@@ -128,7 +128,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 	double distance=sqrt(dx*dx+dy*dy);
 	const double max_dist=1.0;//cm
 	const double max_angle_error=2.0*pi/double(ticks_per_revolution);
-	double eangle=fix_angle(atan2(dy, dx)-current_angle);
+	double eangle=fix_angle(atan2(dy, dx)-current_angle());
 	while (distance > max_dist) {
 		int ret=exit_func();
 		if (ret!=0) {
@@ -143,7 +143,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 		control_wheels(-10.0, 0.0);
 		dx=desired_x-current_x(); dy=desired_y-current_y();
 		distance=sqrt(dx*dx+dy*dy);
-		eangle=fix_angle(atan2(dy, dx)-current_angle);
+		eangle=fix_angle(atan2(dy, dx)-current_angle());
 		delay(1);
 	}
 	halt();
@@ -152,7 +152,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 
 int forward(double distance, int (*exit_func) ()) //cm
 {
-	return goto_goal(current_x()+distance*cos(current_angle), current_y()+distance*sin(current_angle), exit_func);
+	return goto_goal(current_x()+distance*cos(current_angle()), current_y()+distance*sin(current_angle()), exit_func);
 }
 
 double measure_distance(int timeout, int trig_pin, int echo_pin)
@@ -214,6 +214,14 @@ double current_y()
 	return ret;
 }
 
+double current_angle()
+{
+	String response=query_i2c_dev(sensor_id, "?theta\n");
+	double ret=response.toFloat();
+	response="";
+	return ret;
+}
+
 void loop()
 {
 	/* goto_goal(50.0, 50.0);
@@ -229,6 +237,6 @@ void loop()
 	forward(50.0, until_wall_appears);
 	if (Serial.available())
 		while (1) {} */
-	double x=current_y();
+	double x=current_angle();
 	Serial.println(x);
 }
