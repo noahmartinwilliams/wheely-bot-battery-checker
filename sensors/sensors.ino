@@ -1,4 +1,5 @@
-/* Running on Arduino nano. */
+#include <Wire.h>
+/* Running on Arduino micro. */
 const int ticks_per_revolution=38;
 const double pi= 3.141592; //65358979323846264338379052884197163993;
 const double wheel_radius=3.5; //cm
@@ -7,9 +8,11 @@ const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
 volatile double current_x=0.0, current_y=0.0, current_angle=0.0;
 volatile bool left_direction=true, right_direction=false;
+const int decimal_places=3;
+String response=String(0.0, 3)+String("\n"), command;
+volatile int response_index=0;
 
 
-#define DEBUG
 
 #ifdef DEBUG
 const int right_int_pin=0; // pin 7
@@ -62,11 +65,44 @@ void right_interrupt()
 	interrupts();
 }
 
+void write_float(double f)
+{
+	String s=String(f, 3);
+	int x;
+	for (x=0; s[x]!='\0'; x++) {
+		Wire.write(s[x]);
+	}
+}
+
+void handle_request()
+{
+	Wire.write(response.c_str()[response_index]);
+	response_index++;
+}
+
+void handle_receive(int numBytes)
+{
+	while (Wire.available() > 0) {
+		command+=char(Wire.read());
+	}
+
+	if (command=="?x") {
+		response=String(current_x, 3)+"\n";
+		response_index=0;
+		command="";
+	}
+}
+
 void setup()
 {
 #ifdef DEBUG
 	Serial.begin(9600);
+#else
+	Wire.begin(8);
+	Wire.onRequest(handle_request);
+	Wire.onReceive(handle_receive);
 #endif
+	current_x=1.0;
 	pinMode(left_int_pin, INPUT);
 	pinMode(right_int_pin, INPUT);
 	attachInterrupt(right_int_pin, right_interrupt, CHANGE);

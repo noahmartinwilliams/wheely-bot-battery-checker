@@ -1,11 +1,10 @@
 /* TODO: Get a much more powerful battery. */
 /* TODO: Get two optical mice, and use their internal sensors. Look into ADNS-2610. */
+#include <Wire.h>
 const int left_forward_pin=6;
 const int left_backward_pin=5;
 const int right_forward_pin=9;
 const int right_backward_pin=10; // for the wheel driver unit
-const int right_wheel_input=A1; 
-const int left_wheel_input=A0; //from the wheel encoders which emit a 5v high when the wheel turns one tick.
 const int interrupt_pin=0, interrupt_pin2=1; //note: pins 0 and 1 are not used. Since this is an arduino uno it's actually pins 2 and 3. Arduino has a weird way of labelling interrupt pins
 const int left_echo_pin=11, left_trig_pin=12; // for the left sonar unit
 const int right_echo_pin=4, right_trig_pin=3; // for the right sonar unit (not currently used).
@@ -16,11 +15,13 @@ const double pi=3.14159265358979;//32384626433832790528841971633993 <- adjust as
 const int ticks_per_revolution=38; //This isn't the real number of ticks. It's actually twice that amount since a wheel encoder will go from low to high and then from high to low for each 'tick'
 const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
-volatile double current_x=0.0, current_y=0.0, current_angle=0.0;
+volatile double current_y=0.0, current_angle=0.0;
 volatile bool left_direction=true, right_direction=true;
 const int min_pwm=0;
-const int front_an=A5; //not currently used.
+const int sensor_id=8;
 
+double current_x();
+#define DEBUG
 void setup_pins()
 {
 	pinMode(left_echo_pin, INPUT);
@@ -29,8 +30,6 @@ void setup_pins()
 	pinMode(right_forward_pin, OUTPUT);
 	pinMode(left_forward_pin, OUTPUT);
 	pinMode(left_backward_pin, OUTPUT);
-	pinMode(right_wheel_input, INPUT);
-	pinMode(left_wheel_input, INPUT);
 }
 void halt()
 {
@@ -40,44 +39,12 @@ void halt()
 	analogWrite(right_backward_pin, 0);
 }
 
-void interrupt_handle()
-{
-	noInterrupts();
-	int left=num_ticks_left;
-	int right=num_ticks_right;
-  
-	if (digitalRead(left_wheel_input)) {
-		if (left_direction)
-			num_ticks_left++;
-		else
-			num_ticks_left--;
-	}
-
-	if (digitalRead(right_wheel_input)) {
-		if (right_direction)
-			num_ticks_right++;
-		else
-			num_ticks_right--;
-	}
-
-	double dist_left=((double) (left-num_ticks_left))*tick_unit;
-	double dist_right=((double) (right-num_ticks_right))*tick_unit;
-	double center_distance=(dist_left+dist_right)/2.0;
-
-	current_angle+=(dist_right-dist_left)/body_length;
-	current_angle=fix_angle(current_angle);
-	current_x+=center_distance*cos(current_angle);
-	current_y+=center_distance*sin(current_angle);
-	interrupts();
-}
-
 void setup()
 {
 	setup_pins();
 	halt();
-	attachInterrupt(interrupt_pin, interrupt_handle, CHANGE);
-	attachInterrupt(interrupt_pin2, interrupt_handle, HIGH);
 	interrupts();
+	Wire.begin();
 	delay(1000);
 	#ifdef DEBUG
 	Serial.begin(9600);
@@ -153,7 +120,7 @@ void turn(double angle)
 
 int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 {
-	double dx=desired_x-current_x, dy=desired_y-current_y;
+	double dx=desired_x-current_x(), dy=desired_y-current_y;
 	double distance=sqrt(dx*dx+dy*dy);
 	const double max_dist=1.0;//cm
 	const double max_angle_error=2.0*pi/double(ticks_per_revolution);
@@ -170,7 +137,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 			set_angle(atan2(dy, dx));
 		}
 		control_wheels(-10.0, 0.0);
-		dx=desired_x-current_x; dy=desired_y-current_y;
+		dx=desired_x-current_x(); dy=desired_y-current_y;
 		distance=sqrt(dx*dx+dy*dy);
 		eangle=fix_angle(atan2(dy, dx)-current_angle);
 		delay(1);
@@ -181,7 +148,7 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 
 int forward(double distance, int (*exit_func) ()) //cm
 {
-	return goto_goal(current_x+distance*cos(current_angle), current_y+distance*sin(current_angle), exit_func);
+	return goto_goal(current_x()+distance*cos(current_angle), current_y+distance*sin(current_angle), exit_func);
 }
 
 double measure_distance(int timeout, int trig_pin, int echo_pin)
@@ -214,13 +181,28 @@ int until_wall_appears()
 		return 0;
 }
 
+double current_x()
+{
+	Wire.beginTransmission(sensor_id);
+	Wire.write("?x");
+	Wire.endTransmission();
+	String response="";
+	while (!response.endsWith("\n")) {
+		Wire.requestFrom(8, 1);
+		response+=char(Wire.read());
+	}
+	double ret=response.toFloat();
+	response="";
+	return ret;
+}
+
 void loop()
 {
 	/* goto_goal(50.0, 50.0);
 	goto_goal(-50.0, 50.0);
 	goto_goal(-50.0, -50.0);
 	goto_goal(50.0, -50.0); */
-	forward(50.0, until_wall_gone);
+	/* forward(50.0, until_wall_gone);
 	if (Serial.available())
 		while (1) {}
 	turn(pi/2.0);
@@ -228,5 +210,7 @@ void loop()
 		while (1) {}
 	forward(50.0, until_wall_appears);
 	if (Serial.available())
-		while (1) {}
+		while (1) {} */
+	double x=current_x();
+	Serial.println(x);
 }
