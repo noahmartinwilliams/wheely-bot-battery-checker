@@ -17,11 +17,48 @@ const double tick_unit=2.0*pi*wheel_radius/double(ticks_per_revolution);
 volatile int num_ticks_left=0, num_ticks_right=0;
 volatile bool left_direction=true, right_direction=true;
 const int min_pwm=0;
-const int sensor_id=8;
+const int sensor_id=8, sensor_ready_pin=2;
+const int sensor_reset=7, power_meter=A0;
+
+#define DEBUG
 
 double current_x();
 double current_y();
 double current_angle();
+
+#ifdef DEBUG
+#define println(X) Serial.println(X)
+#define print(X) Serial.print(X)
+#else
+#define println(X) (void) 0
+#define print(X) (void) 0
+#endif
+
+int state_i2c_dev(int id, char *msg)
+{
+	Wire.beginTransmission(id);
+	Wire.write(msg);
+	Wire.endTransmission();
+}
+
+void set_left_direction(bool dir)
+{
+	left_direction=dir;
+	if (dir)
+		state_i2c_dev(sensor_id, ".left=true");
+	else
+		state_i2c_dev(sensor_id, ".left=false");
+}
+
+void set_right_direction(bool dir)
+{
+	right_direction=dir;
+	if (dir)
+		state_i2c_dev(sensor_id, ".right=true");
+	else
+		state_i2c_dev(sensor_id, ".right=false");
+}
+
 #define DEBUG
 void setup_pins()
 {
@@ -31,7 +68,11 @@ void setup_pins()
 	pinMode(right_forward_pin, OUTPUT);
 	pinMode(left_forward_pin, OUTPUT);
 	pinMode(left_backward_pin, OUTPUT);
+	pinMode(sensor_ready_pin, INPUT);
+	pinMode(sensor_reset, OUTPUT);
+	pinMode(power_meter, INPUT);
 }
+
 void halt()
 {
 	analogWrite(left_forward_pin, 0);
@@ -43,16 +84,27 @@ void halt()
 void setup()
 {
 	setup_pins();
-	halt();
-	interrupts();
-	Wire.begin();
+	digitalWrite(sensor_reset, HIGH);
 	delay(1000);
+	digitalWrite(sensor_reset, LOW);
+	delay(1000);
+	digitalWrite(sensor_reset, HIGH);
+	halt();
+	Wire.begin();
 	#ifdef DEBUG
 	Serial.begin(9600);
-	Serial.println("press any key to continue");
-	while (!Serial.available()) {
-	}
 	#endif
+	println("Waiting for sensor subsystem to come on...");
+	while (!digitalRead(sensor_ready_pin)) {
+	}
+	println("Done");
+	String response=query_i2c_dev(sensor_id, "?ready");
+	if (response==".ready\n") {
+		println("subsystem ready");
+	} else {
+		println(response);
+		panic();
+	}
 }
 
 
@@ -77,15 +129,13 @@ void control_wheels(double velocity, double turn_rate)
 	int right=(int) ((255.0)*Vr/max_speed);
 	int left=(int) ((255.0)*Vl/max_speed);
 
-	noInterrupts();
-	left_direction=left > 0 ? true : false;
-	right_direction = right > 0 ? true : false;
+	set_left_direction(left > 0 ? true : false);
+	set_right_direction(right > 0 ? true : false);
 
 	analogWrite(left_forward_pin, left > 0 ? left : 0);
 	analogWrite(left_backward_pin, left <= 0 ? -left : 0);
 	analogWrite(right_forward_pin, right > 0 ? right : 0);
 	analogWrite(right_backward_pin, right <= 0 ? -right : 0);
-	interrupts();
 }
 
 double fix_angle(double angle)
@@ -130,10 +180,13 @@ int goto_goal(double desired_x, double desired_y, int (*exit_func) ())
 	const double max_angle_error=2.0*pi/double(ticks_per_revolution);
 	double eangle=fix_angle(atan2(dy, dx)-current_angle());
 	while (distance > max_dist) {
-		int ret=exit_func();
-		if (ret!=0) {
-			halt();
-			return ret;
+		println(distance);
+		if (exit_func!=NULL) {
+			int ret=exit_func();
+			if (ret!=0) {
+				halt();
+				return ret;
+			}
 		}
 
 		if (abs(eangle) > max_angle_error) {
@@ -167,22 +220,10 @@ double measure_distance(int timeout, int trig_pin, int echo_pin)
 	return distance;
 }
 
-int until_wall_gone()
+void panic()
 {
-	double d=measure_distance(50.0, left_trig_pin, left_echo_pin);
-	if (d >= 50.0)
-		return 1;
-	else
-		return 0;
-}
-
-int until_wall_appears()
-{
-	double d=measure_distance(50.0, left_trig_pin, left_echo_pin);
-	if (d < 5.0)
-		return 1;
-	else
-		return 0;
+	println("Entered panic");
+	while (1) {}
 }
 
 String query_i2c_dev(int id, char *query)
@@ -191,9 +232,13 @@ String query_i2c_dev(int id, char *query)
 	Wire.write(query);
 	Wire.endTransmission();
 	String response="";
+	int x=0;
 	while (!response.endsWith("\n")) {
 		Wire.requestFrom(id, 1);
 		response+=char(Wire.read());
+		x++;
+		if (x>20)
+			panic();
 	}
 	return response;
 }
@@ -222,6 +267,11 @@ double current_angle()
 	return ret;
 }
 
+double get_battery_voltage()
+{
+	return (12.0/5.0)*(5.0/1023.0)*double(analogRead(power_meter));
+}
+
 void loop()
 {
 	/* goto_goal(50.0, 50.0);
@@ -237,6 +287,7 @@ void loop()
 	forward(50.0, until_wall_appears);
 	if (Serial.available())
 		while (1) {} */
-	double x=current_angle();
-	Serial.println(x);
+
+	println(get_battery_voltage());
+	//forward(100.0, NULL);
 }

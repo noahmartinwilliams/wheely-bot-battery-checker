@@ -13,16 +13,10 @@ String response=String(0.0, 3)+String("\n"), command;
 volatile int response_index=0;
 const int sig_figs=3;
 const int sensor_id=8;
+const int ready_pin=12;
 
-
-
-#ifdef DEBUG
-const int right_int_pin=0; // pin 7
-const int left_int_pin=1; //pin 0
-#else
 const int right_int_pin=2;
 const int left_int_pin=3;
-#endif 
 
 #ifdef DEBUG 
 #define print(X) Serial.print(X)
@@ -34,8 +28,8 @@ const int left_int_pin=3;
 
 void left_interrupt()
 {
+	println("left int");
 	noInterrupts();
-	println("entering left interrupt");
 	int left=num_ticks_left;
 	if (left_direction)
 		num_ticks_left++;
@@ -52,8 +46,8 @@ void left_interrupt()
 
 void right_interrupt()
 {
+	println("right int");
 	noInterrupts();
-	println("entering right interrupt");
 	int right=num_ticks_right;
 	if (right_direction)
 		num_ticks_right++;
@@ -78,7 +72,7 @@ void write_float(double f)
 
 void handle_request()
 {
-	Wire.write(response.c_str()[response_index]);
+	Wire.write(response[response_index]);
 	response_index++;
 }
 
@@ -88,6 +82,7 @@ void handle_receive(int numBytes)
 		command+=char(Wire.read());
 
 	response_index=0;
+	response="";
 	if (command=="?x\n")
 		response=String(current_x, sig_figs)+"\n";
 
@@ -97,11 +92,29 @@ void handle_receive(int numBytes)
 	else if (command=="?theta\n")
 		response=String(current_angle, sig_figs)+"\n";
 
+	else if (command==".right=true")
+		right_direction=true;
+
+	else if (command==".right=false")
+		right_direction=false;
+
+	else if (command==".left=true")
+		left_direction=true;
+
+	else if (command==".left=false")
+		left_direction=false;
+
+	else if (command=="?ready")
+		response=String(".ready\n");
+
 	command="";
 }
 
 void setup()
 {
+
+	pinMode(ready_pin, OUTPUT);
+	digitalWrite(ready_pin, LOW);
 #ifdef DEBUG
 	Serial.begin(9600);
 #else
@@ -114,6 +127,7 @@ void setup()
 	attachInterrupt(right_int_pin, right_interrupt, CHANGE);
 	attachInterrupt(left_int_pin, left_interrupt, CHANGE);
 	interrupts();
+	digitalWrite(ready_pin, HIGH);
 }
 
 void loop()
